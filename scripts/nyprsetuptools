@@ -1,35 +1,7 @@
 #!/usr/bin/env python3
 
-from argparse import ArgumentParser
-from setuptools.dist import Distribution
-
-from nyprsetuptools import DockerDeploy
-
-
-def deploy():
-    dist = Distribution()
-    deploy_cmd = DockerDeploy(dist)
-
-    parser = ArgumentParser()
-    for long_opt, short_opt, help_txt in deploy_cmd.user_options:
-        if long_opt.endswith('='):
-            action = 'store'
-            default = None
-        else:
-            action = 'store_true'
-            default = False
-        long_opt = '--{}'.format(long_opt.rstrip('='))
-
-        parser.add_argument(long_opt, help=help_txt,
-                            action=action, default=default)
-    args = parser.parse_args()
-    deploy_cmd.initialize_options()
-    for key, value in args.__dict__.items():
-        if value:
-            setattr(deploy_cmd, key, value)
-    deploy_cmd.finalize_options()
-    deploy_cmd.run()
+from nyprsetuptools.util.cli import run_cmd
 
 
 if __name__ == '__main__':
-    deploy()
+    run_cmd()
