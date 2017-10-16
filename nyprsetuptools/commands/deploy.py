@@ -34,6 +34,7 @@ class DockerDeploy(Command):
         ('cpu=', None, 'CPU resource limit for container'),
         ('ports=', None, 'Comma-delimited list of ports to expose on container'),
         ('command=', None, 'Command override for container'),
+        ('test=', None, 'Command to test container after build'),
         ('no-service', None, 'Flag indicating that ECS task is not a service'),
     ]
     tag_pattern = re.compile(r'(?P<tag>v\d+\.\d+\.\d+|demo)')
@@ -52,9 +53,11 @@ class DockerDeploy(Command):
         self.cpu = ''
         self.ports = ''
         self.command = ''
+        self.test = ''
         self.no_service = False
 
     def finalize_options(self):
+        import shlex
         # Required arguments.
         if self.environment not in ENVIRONMENTS:
             raise ValueError('--environment must be one of ({}).'
@@ -77,6 +80,8 @@ class DockerDeploy(Command):
         # Optional arguments.
         if self.ports:
             self.ports = self.ports.split(',')
+        if self.test:
+            self.test = shlex.split(self.test)
 
     @staticmethod
     def docker(*args):
@@ -112,6 +117,8 @@ class DockerDeploy(Command):
 
         # Builds the Docker image and pushes to ECR.
         self.docker('build', '-t', full_tag, '-t', latest_tag, os.getcwd())
+        if self.test:
+            self.docker('run', full_tag, *self.test)
         self.docker('login', '-u', username, '-p', password, registry)
         self.docker('push', full_tag)
         self.docker('push', latest_tag)
