@@ -101,6 +101,7 @@ class DockerDeploy(Command):
         repository_uri = resp['repositories'][0]['repositoryUri']
         registry_id = resp['repositories'][0]['registryId']
         full_tag = '{}:{}'.format(repository_uri, self.tag)
+        latest_tag = '{}:latest'.format(repository_uri)
 
         # Authenticates with ECR.
         resp = ecr.get_authorization_token(registryIds=[registry_id])
@@ -110,9 +111,10 @@ class DockerDeploy(Command):
         registry = auth['proxyEndpoint']
 
         # Builds the Docker image and pushes to ECR.
-        self.docker('build', '-t', full_tag, os.getcwd())
+        self.docker('build', '-t', full_tag, '-t', latest_tag, os.getcwd())
         self.docker('login', '-u', username, '-p', password, registry)
         self.docker('push', full_tag)
+        self.docker('push', latest_tag)
 
         # Creates the ECS task definition from an existing task definition.
         task_name = '{}-{}'.format(self.ecr_repository, self.environment)
