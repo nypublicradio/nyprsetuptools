@@ -38,3 +38,47 @@ setup(
 
 The example above would enable the `deploy` and `requirements` commands and override the default test
 behavior for `setup.py` with a pytest implementation.
+
+## Using stand-alone scripts
+
+Aspects of the **nyprsetuptools** library can be used for non-python projects
+via the `nyprsetuptools` command line interface.
+
+To get started, install the package.
+
+```bash
+pip install -U git+https://github.com/nypublicradio/nyprsetuptools.git
+```
+
+### DockerDeploy
+
+The `DockerDeploy` command is a wrapper for common tasks involved in deploying
+images to AWS ECS.
+
+```
+usage: nyprsetuptools DockerDeploy [-h] [--environment ENVIRONMENT]
+                                   [--ecs-cluster ECS_CLUSTER]
+                                   [--ecr-repository ECR_REPOSITORY]
+                                   [--tag TAG]
+                                   [--memory-reservation MEMORY_RESERVATION]
+                                   [--memory-reservation-hard MEMORY_RESERVATION_HARD]
+                                   [--cpu CPU] [--ports PORTS]
+                                   [--command COMMAND] [--test TEST]
+                                   [--no-service] [--wait WAIT]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --environment         Environment to deploy
+  --ecs-cluster         Base name of AWS ECS target cluster
+  --ecr-repository      Base name of AWS ECR Docker repository
+  --tag                 Docker image tag
+  --memory-reservation  Soft memory reservation for container
+  --memory-reservation-hard
+                        Hard memory limit for container
+  --cpu                 CPU resource limit for container
+  --ports               Comma-delimited list of ports to expose on container
+  --command             Command override for container
+  --test                Command to test container after build
+  --no-service          Flag indicating that ECS task is not a service
+  --wait                Integer value in seconds to wait for new tasks to start
+```

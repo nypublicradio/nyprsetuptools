@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import time
 from io import BytesIO
 from setuptools import Command
 from subprocess import Popen, STDOUT
@@ -36,6 +37,7 @@ class DockerDeploy(Command):
         ('command=', None, 'Command override for container'),
         ('test=', None, 'Command to test container after build'),
         ('no-service', None, 'Flag indicating that ECS task is not a service'),
+        ('wait=', None, 'Integer value in seconds to wait for new tasks to start'),
     ]
     tag_pattern = re.compile(r'(?P<tag>v\d+\.\d+\.\d+|demo)')
 
@@ -55,6 +57,7 @@ class DockerDeploy(Command):
         self.command = ''
         self.test = ''
         self.no_service = False
+        self.wait = 0
 
     def finalize_options(self):
         import shlex
@@ -76,6 +79,7 @@ class DockerDeploy(Command):
         if (self.memory_reservation and self.memory_reservation_hard):
             raise ValueError('--memory-reservation and '
                              '--memory-reservation-hard are mutually exclusive')
+        self.wait = int(self.wait)
 
         # Optional arguments.
         if self.ports:
@@ -176,11 +180,46 @@ class DockerDeploy(Command):
         if self.no_service is False:
             print('Updating service {} with new definition {} on {}.'
                   .format(task_name, revision, cluster_name))
-            resp = ecs.update_service(
+            ecs.update_service(
                 service=task_name,
                 cluster=cluster_name,
                 taskDefinition=task_definition_arn,
             )
+
+            # When a --wait value is provided this will block
+            # until the service is fully swapped or the timeout is reached.
+            to_stop = to_start = None
+            while ((to_stop is None and to_start is None) or
+                    (self.wait > 0 and to_stop + to_start > 0)):
+                start_time = time.time()
+                resp = ecs.describe_services(
+                    services=[task_name],
+                    cluster=cluster_name
+                )
+
+                # The new task can be easily determined via the ARN
+                # of the latest task definition, however this script is
+                # unaware of the previous task definition ARN.
+                # The key not matching the new ARN will be retrieved as 'old'.
+                deployments = {d['taskDefinition']: d
+                               for d in resp['services'][0]['deployments']}
+                new = deployments.pop(task_definition_arn)
+                if deployments:
+                    old = deployments.pop(list(deployments.keys())[0])
+                else:
+                    old = {'runningConut': 0}
+
+                to_stop = old['runningCount']
+                to_start = new['desiredCount'] - new['runningCount']
+                print('Waiting for {} old tasks to stop and {} new tasks to start '
+                      '[{}s until timeout].'
+                      .format(to_stop, to_start, int(self.wait)))
+                time.sleep(5)
+                end_time = time.time()
+                self.wait = self.wait - (end_time - start_time)
+                if to_stop + to_start == 0:
+                    print('Deployment complete.')
+                    break
 
 
 class LambdaDeploy(Command):
