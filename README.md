@@ -64,6 +64,7 @@ usage: nyprsetuptools DockerDeploy [-h] [--environment ENVIRONMENT]
                                    [--memory-reservation-hard MEMORY_RESERVATION_HARD]
                                    [--cpu CPU] [--ports PORTS]
                                    [--command COMMAND] [--test TEST]
+                                   [--test-user TEST_USER]
                                    [--no-service] [--wait WAIT]
 
 optional arguments:
@@ -79,6 +80,7 @@ optional arguments:
   --ports               Comma-delimited list of ports to expose on container
   --command             Command override for container
   --test                Command to test container after build
+  --test-user           Container user to run tests (eg. if they require root)
   --no-service          Flag indicating that ECS task is not a service
   --wait                Integer value in seconds to wait for new tasks to start
 ```

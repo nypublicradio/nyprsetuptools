@@ -36,6 +36,7 @@ class DockerDeploy(Command):
         ('ports=', None, 'Comma-delimited list of ports to expose on container'),
         ('command=', None, 'Command override for container'),
         ('test=', None, 'Command to test container after build'),
+        ('test-user=', None, 'User within the container to run tests'),
         ('no-service', None, 'Flag indicating that ECS task is not a service'),
         ('wait=', None, 'Integer value in seconds to wait for new tasks to start'),
     ]
@@ -56,6 +57,7 @@ class DockerDeploy(Command):
         self.ports = ''
         self.command = ''
         self.test = ''
+        self.test_user = ''
         self.no_service = False
         self.wait = 0
 
@@ -122,7 +124,10 @@ class DockerDeploy(Command):
         # Builds the Docker image and pushes to ECR.
         self.docker('build', '-t', full_tag, '-t', latest_tag, os.getcwd())
         if self.test:
-            self.docker('run', full_tag, *self.test)
+            if self.test_user:
+                self.docker('run', '-u', self.test_user, full_tag, *self.test)
+            else:
+                self.docker('run', full_tag, *self.test)
         self.docker('login', '-u', username, '-p', password, registry)
         self.docker('push', full_tag)
         self.docker('push', latest_tag)
