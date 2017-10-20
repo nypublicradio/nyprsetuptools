@@ -204,7 +204,7 @@ class PyTestDistributed(PyTest):
         import os
         import boto3
         s3 = boto3.resource('s3')
-        bucket = s3.create_bucket(Bucket=self.circle_bucket)
+        bucket = s3.create_bucket(Bucket=self.circle_s3_cache)
         coverage_key_prefix = 'cov_{}'.format(self.circle_sha1)
         coverage_key_file = '.coverage.{}'.format(self.circle_node_index)
         coverage_key = '/'.join((coverage_key_prefix, coverage_key_file))
