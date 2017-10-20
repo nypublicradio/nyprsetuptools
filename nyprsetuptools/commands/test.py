@@ -190,38 +190,6 @@ class PyTestDistributed(PyTest):
         self.circle_node_total = int(self.circle_node_total)
         self.circle_node_index = int(self.circle_node_index)
 
-        if self.circle_ci:
-            self.circle_s3_cache = (self.circle_s3_cache or
-                                    'test-nypr-{CIRCLE_PROJECT_REPONAME}-cache'.format(**os.environ))
-            import pytest
-            # CircleCI collects test artifacts for readable test reports.
-            test_output_dir = os.path.join(self.circle_test_reports, 'pytest')
-            os.makedirs(test_output_dir, exist_ok=True)
-            self.circle_args.append(
-                '--junitxml={}/node_{}.xml'
-                .format(test_output_dir, self.circle_node_index)
-            )
-
-            # When running tests on a single Circle node
-            # no coverage aggregation is required.
-            os.makedirs(self.circle_artifacts, exist_ok=True)
-            if self.circle_node_total == 1:
-                self.circle_args.append(
-                    '--cov-report=html:{}/coverage.html'
-                    .format(self.circle_artifacts)
-                )
-
-            # A custom collector groups slow-running tests to ensure
-            # they are distributed between available nodes.
-            collector = PyTestParallelCollector()
-            pytest.main([
-                '--collect-only',
-                '-p', 'no:terminal',
-                '-p', 'no:sugar'
-            ], plugins=[collector])
-            for test in collector.gather(self.circle_node_total, self.circle_node_index):
-                self.circle_args.append(test)
-
     def _collect_coverage(self):
         """Running tests on multiple Circle nodes requires coverage
         reports to be combined at the end of the testing period.
@@ -254,6 +222,36 @@ class PyTestDistributed(PyTest):
         import shlex
         import sys
         import pytest
+        if self.circle_ci:
+            self.circle_s3_cache = (self.circle_s3_cache or
+                                    'test-nypr-{CIRCLE_PROJECT_REPONAME}-cache'
+                                    .format(**os.environ))
+
+            # CircleCI collects test artifacts for readable test reports.
+            os.makedirs(self.circle_test_reports, exist_ok=True)
+            self.circle_args.append(
+                '--junitxml={0.circle_test_reports}/node_{0.circle_node_index}.xml'
+                .format(self)
+            )
+
+            # When running tests on a single Circle node
+            # no coverage aggregation is required.
+            os.makedirs(self.circle_artifacts, exist_ok=True)
+            if self.circle_node_total == 1:
+                self.circle_args.append(
+                    '--cov-report=html:{0.circle_artifacts}/coverage.html'
+                    .format(self)
+                )
+            # A custom collector groups slow-running tests to ensure
+            # they are distributed between available nodes.
+            collector = PyTestParallelCollector()
+            pytest.main([
+                '--collect-only',
+                '-p', 'no:terminal',
+                '-p', 'no:sugar'
+            ], plugins=[collector])
+            for test in collector.gather(self.circle_node_total, self.circle_node_index):
+                self.circle_args.append(test)
         args = shlex.split(self.additional_test_args) + self.circle_args
         print('running pytest with args: {}'.format(args))
         exit_code = pytest.main(args)
