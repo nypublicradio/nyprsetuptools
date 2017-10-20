@@ -131,26 +131,30 @@ class PyTest(TestCommand):
 
 
 class PyTestParallelCollector:
-    """ Private class that iterates over each pytest item collected
+    """ Private class that iterates over each pytest file collected
         and determines if it has been marked with the 'slow' marker.
         Yields the collected items one-by-one with the 'slow' items
         in sequence.
     """
     def __init__(self):
-        self.slow = []
-        self.tests = []
+        self.slow = set()
+        self.tests = set()
 
     def gather(self, node_total, node_index):
-        for i, test in enumerate(self.slow + self.tests):
+        tests = [t for t in self.tests if t not in self.slow]
+        for i, test_file in enumerate(list(self.slow) + tests):
             if i % node_total == node_index:
-                yield test.nodeid
+                yield test_file
 
     def pytest_collection_modifyitems(self, items):
         for item in items:
+            test_file = item.nodeid.split(':', 1)[0]
+            if test_file.endswith('__init__.py') or not test_file.endswith('.py'):
+                continue
             if item.get_marker('slow'):
-                self.slow.append(item)
+                self.slow.add(test_file)
             else:
-                self.tests.append(item)
+                self.tests.add(test_file)
 
 
 class PyTestDistributed(PyTest):
