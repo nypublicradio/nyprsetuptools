@@ -30,14 +30,15 @@ setup(
     cmdclass={
         'deploy': nyprsetuptools.LambdaDeploy,
         'requirements': nyprsetuptools.InstallRequirements,
+        'test_requirements': nyprsetuptools.InstallTestRequirements,
         'test': nyprsetuptools.PyTest,
     }
     ...
 )
 ```
 
-The example above would enable the `deploy` and `requirements` commands and override the default test
-behavior for `setup.py` with a pytest implementation.
+The example above would enable the `deploy`, `requirements`, and `test_requirements`
+commands and override the default test behavior for `setup.py` with a pytest implementation.
 
 ## Using stand-alone scripts
 
