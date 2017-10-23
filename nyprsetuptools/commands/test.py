@@ -150,8 +150,12 @@ class PyTestParallelCollector:
         nodes = {n: {'time': 0, 'tests': [], 'index': n} for n in range(node_total)}
 
         # The longest running tests are moved to the start of the list.
+        # When tests are marked with the same duration the filename will
+        # be used as an alternative sort key (to ensure the same order is
+        # returned for each node this test command is executed on).
         sorted_slow = sorted(self.tests['slow'].items(),
-                             key=itemgetter(1), reverse=True)
+                             key=itemgetter(1, 0), reverse=True)
+        sorted_fast = sorted(self.tests['fast'])
 
         # Tests are balanced between nodes, granting tests to the
         # least-busy test node and falling back to a round-robin approach
@@ -159,7 +163,7 @@ class PyTestParallelCollector:
         # test time is not provided to the pytest marker.
         for i, (test_file, time_) in enumerate(sorted_slow):
             node = i % node_total
-            min_node = min(nodes.values(), key=lambda x: x['time'])
+            min_node = min(nodes.values(), key=itemgetter('time'))
             if time_ and (min_node['time'] < nodes[node]['time']):
                 index = min_node['index']
             else:
@@ -168,7 +172,7 @@ class PyTestParallelCollector:
             nodes[index]['tests'].append(test_file)
 
         # The 'fast' tests are distributed evenly among nodes.
-        for i, test_file in enumerate(self.tests['fast']):
+        for i, test_file in enumerate(sorted_fast):
             node = i % node_total
             nodes[node]['tests'].append(test_file)
 
