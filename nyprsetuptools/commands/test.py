@@ -155,7 +155,8 @@ class PyTestParallelCollector:
         # returned for each node this test command is executed on).
         sorted_slow = sorted(self.tests['slow'].items(),
                              key=itemgetter(1, 0), reverse=True)
-        sorted_fast = sorted(self.tests['fast'])
+        sorted_fast = sorted(test_file for test_file in self.tests['fast']
+                             if test_file not in self.tests['slow'])
 
         # Tests are balanced between nodes, granting tests to the
         # least-busy test node and falling back to a round-robin approach
