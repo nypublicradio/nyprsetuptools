@@ -1,7 +1,9 @@
 import os
 import shlex
 import sys
+from collections import defaultdict
 from contextlib import contextmanager
+from operator import itemgetter
 from setuptools.command.test import test as TestCommand
 
 
@@ -134,15 +136,22 @@ class PyTestParallelCollector:
     """ Private class that iterates over each pytest file collected
         and determines if it has been marked with the 'slow' marker.
         Yields the collected items one-by-one with the 'slow' items
-        in sequence.
+        in sequence. If the 'time' kwarg was provided to the 'slow' marker
+        the items will be returned from longest to shortest (defaulting to 0
+        in cases where a test is marked 'slow' but time is not provided).
     """
     def __init__(self):
-        self.slow = set()
-        self.tests = set()
+        self.tests = {
+            'slow': defaultdict(int),
+            'fast': set(),
+        }
 
     def gather(self, node_total, node_index):
-        tests = [t for t in self.tests if t not in self.slow]
-        for i, test_file in enumerate(list(self.slow) + tests):
+        slow = [test_file for test_file, time_ in
+                sorted(self.tests['slow'].items(), key=itemgetter(1), reverse=True)]
+        fast = [test_file for test_file in self.tests['fast']
+                if test_file not in self.tests['slow']]
+        for i, test_file in enumerate(slow + fast):
             if i % node_total == node_index:
                 yield test_file
 
@@ -151,10 +160,11 @@ class PyTestParallelCollector:
             test_file = item.nodeid.split(':', 1)[0]
             if test_file.endswith('__init__.py') or not test_file.endswith('.py'):
                 continue
-            if item.get_marker('slow'):
-                self.slow.add(test_file)
+            marker = item.get_marker('slow')
+            if marker:
+                self.tests['slow'][test_file] = marker.kwargs.get('time', 0)
             else:
-                self.tests.add(test_file)
+                self.tests['fast'].add(test_file)
 
 
 class PyTestDistributed(PyTest):
