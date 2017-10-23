@@ -147,13 +147,33 @@ class PyTestParallelCollector:
         }
 
     def gather(self, node_total, node_index):
-        slow = [test_file for test_file, time_ in
-                sorted(self.tests['slow'].items(), key=itemgetter(1), reverse=True)]
-        fast = [test_file for test_file in self.tests['fast']
-                if test_file not in self.tests['slow']]
-        for i, test_file in enumerate(slow + fast):
-            if i % node_total == node_index:
-                yield test_file
+        nodes = {n: {'time': 0, 'tests': [], 'index': n} for n in range(node_total)}
+
+        # The longest running tests are moved to the start of the list.
+        sorted_slow = sorted(self.tests['slow'].items(),
+                             key=itemgetter(1), reverse=True)
+
+        # Tests are balanced between nodes, granting tests to the
+        # least-busy test node and falling back to a round-robin approach
+        # when nodes have equal test distribution or an estimated
+        # test time is not provided to the pytest marker.
+        for i, (test_file, time_) in enumerate(sorted_slow):
+            node = i % node_total
+            min_node = min(nodes.values(), key=lambda x: x['time'])
+            if time_ and (min_node['time'] < nodes[node]['time']):
+                index = min_node['index']
+            else:
+                index = node
+            nodes[index]['time'] += time_
+            nodes[index]['tests'].append(test_file)
+
+        # The 'fast' tests are distributed evenly among nodes.
+        for i, test_file in enumerate(self.tests['fast']):
+            node = i % node_total
+            nodes[node]['tests'].append(test_file)
+
+        for test_file in nodes[node_index]['tests']:
+            yield test_file
 
     def pytest_collection_modifyitems(self, items):
         for item in items:
