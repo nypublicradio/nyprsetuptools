@@ -206,21 +206,15 @@ class PyTestDistributed(PyTest):
         ('additional-test-args=', 'a', 'Arguments to pass to test suite.'),
         ('circle-node-index=', None, 'The index of the container.'),
         ('circle-node-total=', None, 'The total number of test containers.'),
-        ('circle-s3-cache=', None, 'The bucket used to share files.'),
-        ('circle-test-reports=', None, 'Directory to save test_reports [Default: ~/test_reports]'),
-        ('circle-artifacts=', None, 'The bucket used to share files [Default: ~/artifacts].'),
+        ('workspace=', None, 'The CircleCI workspace.'),
     ]
 
     def initialize_options(self):
         PyTest.initialize_options(self)
         self.circle_node_index = 0
         self.circle_node_total = 1
-        self.circle_s3_cache = ''
+        self.workspace = ''
         self.circle_args = []
-
-        home = os.path.expanduser('~')
-        self.circle_test_reports = os.path.join(home, 'test_reports')
-        self.circle_artifacts = os.path.join(home, 'artifacts')
 
     def finalize_options(self):
         PyTest.finalize_options(self)
@@ -228,59 +222,36 @@ class PyTestDistributed(PyTest):
         self.circle_sha1 = os.environ.get('CIRCLE_SHA1')
         self.circle_node_total = int(self.circle_node_total)
         self.circle_node_index = int(self.circle_node_index)
+        if self.workspace:
+            os.makedirs(self.workspace, exist_ok=True)
+            os.makedirs(os.path.join(self.workspace, 'pytest'))
+            os.makedirs(os.path.join(self.workspace, 'coverage'))
 
     def _collect_coverage(self):
         """Running tests on multiple Circle nodes requires coverage
         reports to be combined at the end of the testing period.
-        Containers do not share data so each report must be uploaded
+        Containers do not share data so each report must be saved to a workspace
         to s3, downloaded, and then combined by the last-to-finish
         node.
         """
-        import os
-        import boto3
-        s3 = boto3.resource('s3')
-        bucket = s3.create_bucket(Bucket=self.circle_s3_cache)
-        coverage_key_prefix = 'cov_{}'.format(self.circle_sha1)
-        coverage_key_file = '.coverage.{}'.format(self.circle_node_index)
-        coverage_key = '/'.join((coverage_key_prefix, coverage_key_file))
-        bucket.upload_file('.coverage', coverage_key)
-        coverage_reports = list(bucket.objects.filter(Prefix=coverage_key_prefix))
-        if len(coverage_reports) == self.circle_node_total:
-            cov_combine_dir = '.cov-combine'
-            os.mkdir(cov_combine_dir)
-            for coverage_report in coverage_reports:
-                filename = os.path.join(
-                    cov_combine_dir,
-                    os.path.basename(coverage_report.key)
-                )
-                s3_obj = coverage_report.Object()
-                s3_obj.download_file(filename)
-                s3_obj.delete()
+        import shutil
+        coverage_file_basename = '.coverage.{0.circle_node_index}'.format(self)
+        coverage_file = os.path.join(self.workspace, 'coverage', coverage_file_basename)
+        shutil.copyfile('.coverage', coverage_file)
 
     def run_tests(self):
         import shlex
         import sys
         import pytest
         if self.circle_ci:
-            self.circle_s3_cache = (self.circle_s3_cache or
-                                    'test-nypr-{CIRCLE_PROJECT_REPONAME}-cache'
-                                    .format(**os.environ))
 
-            # CircleCI collects test artifacts for readable test reports.
-            os.makedirs(self.circle_test_reports, exist_ok=True)
-            self.circle_args.append(
-                '--junitxml={0.circle_test_reports}/node_{0.circle_node_index}.xml'
-                .format(self)
-            )
-
-            # When running tests on a single Circle node
-            # no coverage aggregation is required.
-            os.makedirs(self.circle_artifacts, exist_ok=True)
-            if self.circle_node_total == 1:
+            if os.path.isdir(self.workspace):
+                # CircleCI collects test artifacts for readable test reports.
                 self.circle_args.append(
-                    '--cov-report=html:{0.circle_artifacts}/coverage.html'
+                    '--junitxml={0.workspace}/pytest/node_{0.circle_node_index}.xml'
                     .format(self)
                 )
+
             # A custom collector groups slow-running tests to ensure
             # they are distributed between available nodes.
             collector = PyTestParallelCollector()
@@ -292,7 +263,7 @@ class PyTestDistributed(PyTest):
             for test in collector.gather(self.circle_node_total, self.circle_node_index):
                 self.circle_args.append(test)
         args = shlex.split(self.additional_test_args) + self.circle_args
-        print('running pytest with args: {}'.format(args))
+        print('running pytest with args: {}'.format('\n'.join(args)))
         exit_code = pytest.main(args)
         # This is wrapped in a catch-all try/except block
         # because a bug in collecting coverage is not worth
