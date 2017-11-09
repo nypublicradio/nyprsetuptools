@@ -236,14 +236,17 @@ class LambdaDeploy(Command):
 
         This command will create a zip file <function-name>-<environment>.zip
         and save the file in s3://nypr-lambda-<function-name>-<environment>.
+        If the --no-s3 flag is passed the zip file will be uploaded directly
+        to the Lambda instead.
 
         NOTE: Before executing this command the required Lambda function
-        (and preferrably the target S3 bucket) should be created via Terraform.
+        (and preferrably the target S3 bucket if used) should be created via Terraform.
     """
     user_options = [
         ('environment=', None, 'Environment to deploy'),
         ('function-name=', None, 'Base name of AWS Lambda target function'),
         ('function-handler=', None, 'Dot-delimited path to python function'),
+        ('no-s3', None, 'Upload zip directly to Lamdba, bypassing S3'),
     ]
 
     @property
@@ -254,6 +257,7 @@ class LambdaDeploy(Command):
         self.environment = ''
         self.function_name = ''
         self.function_handler = ''
+        self.no_s3 = False
 
     def finalize_options(self):
         if self.environment not in ENVIRONMENTS:
@@ -301,26 +305,42 @@ class LambdaDeploy(Command):
             self.save_dir_to_zip(zip_file, site_packages)
         file_obj.seek(0)
 
-        # The zip file is uploaded to S3, the bucket is created if it does
-        # not exist.
-        s3 = boto3.resource('s3')
-        bucket = s3.Bucket('nypr-lambda-{}'.format(function_name))
-        bucket.create()
-        s3_obj = bucket.Object('{}.zip'.format(function_name))
-        s3_obj.upload_fileobj(file_obj)
-
         client = boto3.client('lambda')
-        try:
-            client.update_function_code(
-                FunctionName=function_name,
-                S3Bucket=bucket.name,
-                S3Key=s3_obj.key,
-                Publish=True
-            )
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ResourceNotFoundException':
-                sys.exit('The lambda function {} needs to be created '
-                         'via terraform.'.format(function_name))
+
+        if self.no_s3:
+            try:
+                client.update_function_code(
+                    FunctionName=function_name,
+                    ZipFile=file_obj.read(),
+                )
+            except ClientError as e:
+                if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                    sys.exit('The lambda function {} needs to be created '
+                             'via terraform.'.format(function_name))
+                else:
+                    raise
+        else:
+            # The zip file is uploaded to S3, the bucket is created if it does
+            # not exist.
+            s3 = boto3.resource('s3')
+            bucket = s3.Bucket('nypr-lambda-{}'.format(function_name))
+            bucket.create()
+            s3_obj = bucket.Object('{}.zip'.format(function_name))
+            s3_obj.upload_fileobj(file_obj)
+
+            try:
+                client.update_function_code(
+                    FunctionName=function_name,
+                    S3Bucket=bucket.name,
+                    S3Key=s3_obj.key,
+                    Publish=True
+                )
+            except ClientError as e:
+                if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                    sys.exit('The lambda function {} needs to be created '
+                             'via terraform.'.format(function_name))
+                else:
+                    raise
 
         # If the deploy function is not executed on CircleCI the settings
         # will not be updated.
