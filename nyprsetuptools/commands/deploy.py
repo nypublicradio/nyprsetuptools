@@ -344,7 +344,7 @@ class LambdaDeploy(Command):
 
         # If the deploy function is not executed on CircleCI the settings
         # will not be updated.
-        env = get_circle_environment_variables(self.environment)
+        env = get_circle_environment_variables(self.environment, exclude_aws=True)
         if env:
             client.update_function_configuration(
                 FunctionName=function_name,
