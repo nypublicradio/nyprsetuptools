@@ -37,6 +37,8 @@ class DockerDeploy(Command):
         ('command=', None, 'Command override for container'),
         ('test=', None, 'Command to test container after build'),
         ('test-user=', None, 'User within the container to run tests'),
+        ('fargate', None, 'Flag indicating that ECS task should run in Fargate'),
+        ('execution-role=', None, 'Required with --fargate flag'),
         ('no-service', None, 'Flag indicating that ECS task is not a service'),
         ('wait=', None, 'Integer value in seconds to wait for new tasks to start'),
     ]
@@ -58,6 +60,8 @@ class DockerDeploy(Command):
         self.command = ''
         self.test = ''
         self.test_user = ''
+        self.fargate = False
+        self.execution_role = ''
         self.no_service = False
         self.wait = 0
 
@@ -81,6 +85,9 @@ class DockerDeploy(Command):
         if (self.memory_reservation and self.memory_reservation_hard):
             raise ValueError('--memory-reservation and '
                              '--memory-reservation-hard are mutually exclusive')
+        if (self.fargate and not (self.execution_role and self.memory_reservation and self.cpu)):
+            raise ValueError('--fargate flag requires --execution-role, '
+                             '--memory-reservation, and --cpu')
         self.wait = int(self.wait)
 
         # Optional arguments.
@@ -106,6 +113,7 @@ class DockerDeploy(Command):
 
         ecr = boto3.client('ecr')
         ecs = boto3.client('ecs')
+        iam = boto3.client('iam')
 
         # The repository URI should be included in the tag.
         resp = ecr.describe_repositories(repositoryNames=[self.ecr_repository])
@@ -147,15 +155,26 @@ class DockerDeploy(Command):
             task_def['environment'] = [{'name': k, 'value': v}
                                        for k, v in env_vars.items()]
         if self.memory_reservation:
-            task_def['memoryReservation'] = self.memory_reservation
+            task_def['memoryReservation'] = int(self.memory_reservation)
         elif self.memory_reservation_hard:
             task_def['memory'] = self.memory_reservation_hard
         if self.cpu:
-            task_def['cpu'] = self.cpu
+            task_def['cpu'] = int(self.cpu)
         if self.ports:
             task_def['portMappings'] = [{'containerPort': p} for p in self.ports]
         if self.command:
             task_def['command'] = self.command
+
+        additional_args = {}
+        if self.fargate:
+            execution_role_arn = iam.get_role(RoleName=self.execution_role)['Role']['Arn']
+            additional_args.update({
+                'networkMode': 'awsvpc',
+                'requiresCompatibilities': ['EC2', 'FARGATE'],
+                'executionRoleArn': execution_role_arn,
+                'cpu': str(self.cpu),
+                'memory': str(self.memory_reservation),
+            })
 
         # Update the ECS task definition with the newly pushed Docker image.
         print('Updating task definition {}.'.format(task_name))
@@ -164,6 +183,7 @@ class DockerDeploy(Command):
                 task_def,
             ],
             family=task_name,
+            **additional_args,
         )
         task_definition_arn = resp['taskDefinition']['taskDefinitionArn']
         revision = resp['taskDefinition']['revision']
