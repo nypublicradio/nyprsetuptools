@@ -161,7 +161,7 @@ class DockerDeploy(Command):
         if self.cpu:
             task_def['cpu'] = int(self.cpu)
         if self.ports:
-            task_def['portMappings'] = [{'containerPort': p} for p in self.ports]
+            task_def['portMappings'] = [{'containerPort': int(p)} for p in self.ports]
         if self.command:
             task_def['command'] = self.command
 
