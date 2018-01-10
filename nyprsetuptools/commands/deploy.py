@@ -266,6 +266,7 @@ class LambdaDeploy(Command):
         ('environment=', None, 'Environment to deploy'),
         ('function-name=', None, 'Base name of AWS Lambda target function'),
         ('function-handler=', None, 'Dot-delimited path to python function'),
+        ('package-dir=', None, '(Optional) target directory to zip + deploy'),
         ('no-s3', None, 'Upload zip directly to Lamdba, bypassing S3'),
     ]
 
@@ -277,6 +278,7 @@ class LambdaDeploy(Command):
         self.environment = ''
         self.function_name = ''
         self.function_handler = ''
+        self.package_dir = None
         self.no_s3 = False
 
     def finalize_options(self):
@@ -288,6 +290,11 @@ class LambdaDeploy(Command):
         elif not self.function_handler:
             raise ValueError('--function-handler must be provided.')
 
+        if self.package_dir:
+            self.package_dir = os.path.expanduser(self.package_dir)
+            if not os.path.isdir(self.package_dir):
+                raise FileNotFoundError('--package-dir not a valid directory.')
+
     @staticmethod
     def save_dir_to_zip(zip_file, directory):
         exclude_files = {'__pycache__'}
@@ -298,10 +305,37 @@ class LambdaDeploy(Command):
                     rel_path = os.path.relpath(abs_path, directory)
                     zip_file.write(abs_path, rel_path)
 
-    def run(self):
-        import zipfile
+    def run_for_venv(self):
+        """
+        Use this method for applications built within a virtualenvironment
+        with:
+            pip install -e .
+        """
         from distutils.sysconfig import get_python_lib
+        import zipfile
+        site_packages = get_python_lib()
+        cwd = os.getcwd()
+        code_dir = os.path.join(cwd, self.function_handler.split('.')[0])
+        file_obj = BytesIO()
+        with zipfile.ZipFile(file_obj, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            self.save_dir_to_zip(zip_file, code_dir)
+            self.save_dir_to_zip(zip_file, site_packages)
+        file_obj.seek(0)
+        return file_obj
 
+    def run_for_package_dir(self):
+        """
+        Use this method for applications built in a clean directory with:
+            pip install . -t /path/to/clean_dir
+        """
+        import zipfile
+        file_obj = BytesIO()
+        with zipfile.ZipFile(file_obj, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            self.save_dir_to_zip(zip_file, self.package_dir)
+        file_obj.seek(0)
+        return file_obj
+
+    def run(self):
         try:
             import boto3
             from botocore.exceptions import ClientError
@@ -313,17 +347,10 @@ class LambdaDeploy(Command):
         function_name = '{0.function_name}-{0.environment}'.format(self)
         function_handler = self.function_handler
 
-        site_packages = get_python_lib()
-        cwd = os.getcwd()
-        code_dir = os.path.join(cwd, function_handler.split('.')[0])
-
-        # The staffpix code and site-packages (from the virtualenv) are
-        # added to a zip file (in-memory).
-        file_obj = BytesIO()
-        with zipfile.ZipFile(file_obj, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            self.save_dir_to_zip(zip_file, code_dir)
-            self.save_dir_to_zip(zip_file, site_packages)
-        file_obj.seek(0)
+        if self.package_dir:
+            file_obj = self.run_for_package_dir()
+        else:
+            file_obj = self.run_for_venv()
 
         client = boto3.client('lambda')
 
