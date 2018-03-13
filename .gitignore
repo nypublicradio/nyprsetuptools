@@ -105,3 +105,4 @@ tox.local.ini # Local dev folder
 newrelic.ini
 
 *.zip
+.pytest_cache

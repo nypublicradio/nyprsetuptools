@@ -1,3 +1,4 @@
+import itertools
 import os
 import re
 import sys
@@ -41,6 +42,7 @@ class DockerDeploy(Command):
         ('execution-role=', None, 'Required with --fargate flag'),
         ('no-service', None, 'Flag indicating that ECS task is not a service'),
         ('wait=', None, 'Integer value in seconds to wait for new tasks to start'),
+        ('migrate=', None, 'Command to run migrations'),
     ]
     tag_pattern = re.compile(r'(?P<tag>v\d+\.\d+\.\d+|demo)')
 
@@ -64,6 +66,7 @@ class DockerDeploy(Command):
         self.execution_role = ''
         self.no_service = False
         self.wait = 0
+        self.migrate = ''
 
     def finalize_options(self):
         import shlex
@@ -95,6 +98,8 @@ class DockerDeploy(Command):
             self.ports = self.ports.split(',')
         if self.test:
             self.test = shlex.split(self.test)
+        if self.migrate:
+            self.migrate = shlex.split(self.migrate)
 
     @staticmethod
     def docker(*args):
@@ -103,13 +108,34 @@ class DockerDeploy(Command):
         if p.returncode > 0:
             raise IOError('Problem building docker container, aborting.')
 
+    def build(self, tags=[]):
+        """
+        Builds the Docker image with tags  <repo>:<git_tag> and <repo>:latest.
+        """
+        # This scary bit of code generates all of the '-t' command line
+        # flags for tagging images.
+        flags = list(sum(zip(itertools.repeat('-t'), tags), ()))
+        self.docker('build', *flags, os.getcwd())
+        if self.test:
+            test_tag = tags[0]
+            test_flags = ['-u', self.test_user] if self.test_user else []
+            self.docker('run', *test_flags, test_tag, *self.test)
+
+    def push(self, registry, username, password, tags=[]):
+        # Pushes the Docker image to ECR.
+        self.docker('login', '-u', username, '-p', password, registry)
+        for tag in tags:
+            self.docker('push', tag)
+
     def run(self):
         from base64 import b64decode
         try:
             import boto3
+            from botocore.exceptions import ClientError
         except ImportError:
             self.distribution.fetch_build_eggs(['boto3'])
             import boto3
+            from botocore.exceptions import ClientError
 
         ecr = boto3.client('ecr')
         ecs = boto3.client('ecs')
@@ -122,6 +148,9 @@ class DockerDeploy(Command):
         full_tag = '{}:{}'.format(repository_uri, self.tag)
         latest_tag = '{}:latest'.format(repository_uri)
 
+        # Builds the Docker image.
+        self.build(tags=[full_tag, latest_tag])
+
         # Authenticates with ECR.
         resp = ecr.get_authorization_token(registryIds=[registry_id])
         auth = resp['authorizationData'][0]
@@ -129,16 +158,8 @@ class DockerDeploy(Command):
         username, password = auth_token.split(':')
         registry = auth['proxyEndpoint']
 
-        # Builds the Docker image and pushes to ECR.
-        self.docker('build', '-t', full_tag, '-t', latest_tag, os.getcwd())
-        if self.test:
-            if self.test_user:
-                self.docker('run', '-u', self.test_user, full_tag, *self.test)
-            else:
-                self.docker('run', full_tag, *self.test)
-        self.docker('login', '-u', username, '-p', password, registry)
-        self.docker('push', full_tag)
-        self.docker('push', latest_tag)
+        # Pushes the Docker image.
+        self.push(registry, username, password, tags=[full_tag, latest_tag])
 
         # Creates the ECS task definition from an existing task definition.
         task_name = '{}-{}'.format(self.ecr_repository, self.environment)
@@ -199,6 +220,68 @@ class DockerDeploy(Command):
         else:
             raise ValueError('Cluster {} does not exist, aborting.'
                              .format(self.ecs_cluster))
+
+        # If a migration command is provided, run the migration.
+        if self.migrate:
+            options = {
+                'cluster': cluster_name,
+                'taskDefinition': task_definition_arn,
+                'overrides': {
+                    'containerOverrides': [
+                        {
+                            'command': self.migrate,
+                            'name': task_name,
+                        },
+                    ]
+                },
+                'launchType': 'EC2',
+                'count': 1,
+            }
+            if self.fargate:
+                cwl = boto3.client('logs')
+                service = ecs.describe_services(
+                    cluster=cluster_name,
+                    services=[task_name],
+                )['services'][0]
+                network_config = service['networkConfiguration']
+                options['launchType'] = 'FARGATE'
+                options['networkConfiguration'] = network_config
+                migration_task = ecs.run_task(**options)
+
+                uuid = migration_task['tasks'][0]['taskArn'].split('/')[-1]
+                resp = ecs.describe_task_definition(
+                    taskDefinition=task_name
+                )
+                log_config = resp['taskDefinition']['containerDefinitions'][0]['logConfiguration']['options']
+                log_group_name = log_config['awslogs-group']
+                log_stream_name = '{prefix}/{family}/{uuid}'.format(
+                    prefix=log_config['awslogs-stream-prefix'],
+                    family=resp['taskDefinition']['family'],
+                    uuid=uuid,
+                )
+
+                def read_logs(next_token=None, wait_until=None):
+                    if time.time() > wait_until:
+                        sys.exit('Could not find logs for migration command.')
+                    options = {
+                        'logGroupName': log_group_name,
+                        'logStreamName': log_stream_name,
+                        'startFromHead': True,
+                    }
+                    if next_token:
+                        options['startFromHead'] = False
+                        options['nextToken'] = next_token
+                    try:
+                        resp = cwl.get_log_events(**options)
+                        for event in resp['events']:
+                            print(event)
+                        else:
+                            return
+                        read_logs(resp['nextForwardToken'], wait_until=wait_until)
+                    except ClientError:
+                        time.sleep(1)
+                        read_logs(wait_until=wait_until)
+                read_logs(wait_until=time.time() + 30)
 
         # If the ECS task definition has an associated service, the service
         # is updated with the latest task definition revision.
