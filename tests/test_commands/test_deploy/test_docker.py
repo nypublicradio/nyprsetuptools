@@ -1,3 +1,7 @@
+import io
+from contextlib import redirect_stdout
+
+
 class TestDocker:
     def _run_cmd(self, settings, **kwargs):
         import os
@@ -42,9 +46,13 @@ class TestDocker:
     def test_docker_migration_deploy(self, settings):
         """
         Tests a deployment that updates the ECS image and task definition
-        but does not update any services. This is useful for tasks that
-        are executed on an on-demand basis or for generating intermediate
-        tasks to run migrations.
+        and executes a migration command. This will not update any services.
+        The migration command here is a simple /bin/sh-compatable script that
+        will echo "Migrating N" for N = 1 to 100.
         """
-        self._run_cmd(settings, no_service=True, wait=0,
-                      migrate='echo "migration complete"')
+        f = io.StringIO()
+        with redirect_stdout(f):
+            self._run_cmd(settings, no_service=True, wait=0, migrate='migrate')
+        lines = [s for s in f.getvalue().split('\n') if s.startswith('Migrating')]
+        expected = ['Migrating {}'.format(n) for n in range(1, 101)]
+        assert lines == expected

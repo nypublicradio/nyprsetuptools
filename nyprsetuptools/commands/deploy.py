@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import time
+from base64 import b64decode
 from io import BytesIO
 from setuptools import Command
 from subprocess import Popen, STDOUT
@@ -128,7 +129,6 @@ class DockerDeploy(Command):
             self.docker('push', tag)
 
     def run(self):
-        from base64 import b64decode
         try:
             import boto3
             from botocore.exceptions import ClientError
@@ -246,7 +246,15 @@ class DockerDeploy(Command):
                 network_config = service['networkConfiguration']
                 options['launchType'] = 'FARGATE'
                 options['networkConfiguration'] = network_config
-                migration_task = ecs.run_task(**options)
+
+                retry_delay = 5
+                now = time.time()
+                while (time.time() - now) < (60 * 5):
+                    migration_task = ecs.run_task(**options)
+                    if migration_task['tasks']:
+                        break
+                    time.sleep(retry_delay)
+                    retry_delay = retry_delay * 1.5
 
                 uuid = migration_task['tasks'][0]['taskArn'].split('/')[-1]
                 resp = ecs.describe_task_definition(
@@ -260,7 +268,7 @@ class DockerDeploy(Command):
                     uuid=uuid,
                 )
 
-                def read_logs(next_token=None, wait_until=None):
+                def read_logs(next_token=None, wait_until=None, retry_delay=5):
                     if time.time() > wait_until:
                         sys.exit('Could not find logs for migration command.')
                     options = {
@@ -274,14 +282,14 @@ class DockerDeploy(Command):
                     try:
                         resp = cwl.get_log_events(**options)
                         for event in resp['events']:
-                            print(event)
+                            print(event['message'])
                         else:
                             return
                         read_logs(resp['nextForwardToken'], wait_until=wait_until)
                     except ClientError:
-                        time.sleep(1)
-                        read_logs(wait_until=wait_until)
-                read_logs(wait_until=time.time() + 30)
+                        time.sleep(retry_delay)
+                        read_logs(wait_until=wait_until, retry_delay=retry_delay * 1.5)
+                read_logs(wait_until=time.time() + (60 * 5))
 
         # If the ECS task definition has an associated service, the service
         # is updated with the latest task definition revision.
