@@ -308,7 +308,7 @@ class DockerDeploy(Command):
             if deployments:
                 old = deployments.pop(list(deployments.keys())[0])
             else:
-                old = {'runningConut': 0}
+                old = {'runningCount': 0}
 
             to_stop = old['runningCount']
             to_start = new['desiredCount'] - new['runningCount']
