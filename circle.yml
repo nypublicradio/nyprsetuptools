@@ -1,0 +1,32 @@
+version: 2
+jobs:
+
+  build:
+    working_directory: ~/nyprsetuptools
+    docker:
+      - image: circleci/python:3.6
+    steps:
+      - checkout
+      - restore_cache:
+          key: deps-{{ checksum "setup.py" }}-{{ checksum "circle.yml" }}
+      - setup_remote_docker
+      - run:
+          name: Install Requirements
+          command: |
+            if [[ ! -d ~/.venv ]]; then
+              python -m venv ~/.venv
+              . ~/.venv/bin/activate
+              pip install -e .
+              pip install pytest
+            fi
+      - run:
+          name: Test
+          command: |
+            . ~/.venv/bin/activate
+            pytest
+      - save_cache:
+          key: deps-{{ checksum "setup.py" }}-{{ checksum "circle.yml" }}
+          paths:
+            - ~/.venv
+            - ~/nyprsetuptools/nyprsetuptools.egg-info
+            - ~/nyprsetuptools/.eggs

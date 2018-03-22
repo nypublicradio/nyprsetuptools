@@ -23,6 +23,9 @@ setup(
     scripts=[
         'scripts/nyprsetuptools',
     ],
+    tests_require=[
+        'pytest',
+    ],
     zip_safe=True,
     license='BSD',
 )
