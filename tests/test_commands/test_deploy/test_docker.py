@@ -1,6 +1,8 @@
 import io
 from contextlib import redirect_stdout
 
+import pytest
+
 
 class TestDocker:
     def _run_cmd(self, settings, **kwargs):
@@ -56,3 +58,10 @@ class TestDocker:
         lines = [s for s in f.getvalue().split('\n') if s.startswith('Migrating')]
         expected = ['Migrating {}'.format(n) for n in range(1, 101)]
         assert lines == expected
+
+    def test_docker_migration_fail(self, settings):
+        """
+        Tests that a failed migration forces a script to exit.
+        """
+        with pytest.raises(SystemExit):
+            self._run_cmd(settings, wait=60, migrate='test -f /does/not/exist')

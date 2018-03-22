@@ -241,7 +241,6 @@ class DockerDeploy(Command):
 
         migration_task = wait(self.ecs.run_task, kwargs=options,
                               wait_for_func=lambda x: x['tasks'])
-
         uuid = migration_task['tasks'][0]['taskArn'].split('/')[-1]
         resp = self.ecs.describe_task_definition(
             taskDefinition=task_name
@@ -264,16 +263,26 @@ class DockerDeploy(Command):
                 options['startFromHead'] = False
                 options['nextToken'] = next_token
             resp = wait(self.cwl.get_log_events, kwargs=options,
-                        exceptions=[self.ClientError],
-                        wait_for_func=lambda x: x['events'])
-            if not resp:
-                return
+                        exceptions=[self.ClientError])
             for event in resp['events']:
                 print(event['message'])
-            else:
-                return
-            read_logs(resp['nextForwardToken'])
-        read_logs()
+            return resp['nextForwardToken']
+
+        running = True
+        next_token = read_logs()
+        while running:
+            resp = wait(self.ecs.describe_tasks,
+                        kwargs={'cluster': cluster_name, 'tasks': [uuid]},
+                        wait_for_func=lambda x: x['tasks'])
+            running = resp['tasks'][0]['lastStatus'] != 'STOPPED'
+            next_token = read_logs(next_token)
+            time.sleep(1)  # Prevents exceeding API rate limit.
+
+        # If the container fails to start (eg. command not found on PATH)
+        # exitCode will be unavailable.
+        exit_code = resp['tasks'][0]['containers'][0].get('exitCode', 1)
+        if exit_code > 0:
+            raise SystemExit('Migration command failed, aborting.')
 
     def update_service(self, cluster_name, task_name, task_definition_arn):
         """ Updates an ECS cluster's service for a service that matches
