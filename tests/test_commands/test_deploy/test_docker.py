@@ -59,9 +59,18 @@ class TestDocker:
         expected = ['Migrating {}'.format(n) for n in range(1, 101)]
         assert lines == expected
 
-    def test_docker_migration_fail(self, settings):
+    def test_docker_migration_fail_with_exit_code(self, settings):
         """
-        Tests that a failed migration forces a script to exit.
+        Tests that a migration command with a non-zero exit code
+        forces the script to exit.
         """
         with pytest.raises(SystemExit):
             self._run_cmd(settings, wait=60, migrate='test -f /does/not/exist')
+
+    def test_docker_migration_fail_without_exit_code(self, settings):
+        """
+        Tests that a migration container that fails to start (no exit code)
+        forces the script to exit.
+        """
+        with pytest.raises(SystemExit):
+            self._run_cmd(settings, wait=60, migrate='/not/a/real/command')
