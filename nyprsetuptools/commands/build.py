@@ -21,13 +21,17 @@ class InstallRequirements(Command):
         pass
 
     def run(self):
-        import pip
+        import subprocess
         install_from_git = [pkg.split('=')[:len('#egg=')] for pkg
                             in self.distribution.dependency_links]
         install_from_pypi = [pkg for pkg in self.distribution.install_requires
                              if pkg not in install_from_git]
-        pip.main(['install'] + self.distribution.dependency_links +
-                 install_from_pypi)
+        p = subprocess.Popen(
+            ['pip', 'install'] +
+            self.distribution.dependency_links +
+            install_from_pypi
+        )
+        p.communicate()
 
 
 class InstallTestRequirements(Command):
@@ -50,10 +54,14 @@ class InstallTestRequirements(Command):
         pass
 
     def run(self):
-        import pip
+        import subprocess
         install_from_git = [pkg.split('=')[:len('#egg=')] for pkg
                             in self.distribution.dependency_links]
         install_from_pypi = [pkg for pkg in self.distribution.tests_require
                              if pkg not in install_from_git]
-        pip.main(['install'] + self.distribution.dependency_links +
-                 install_from_pypi)
+        p = subprocess.Popen(
+            ['pip', 'install'] +
+            self.distribution.dependency_links +
+            install_from_pypi
+        )
+        p.communicate()
