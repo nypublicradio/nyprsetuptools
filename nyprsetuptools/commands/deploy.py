@@ -101,10 +101,12 @@ class DockerDeploy(Command):
         if self.environment not in ENVIRONMENTS and not self.no_strict_environment:
             raise ValueError('--environment must be one of ({}).'
                              .format(','.join(ENVIRONMENTS)))
-        tag_match = self.tag_pattern.match(self.tag)
-        if not tag_match:
-            raise ValueError('--tag must match expression {}'
-                             .format(self.tag_pattern))
+
+        if not self.no_strict_environment:
+            tag_match = self.tag_pattern.match(self.tag)
+            if not tag_match:
+                raise ValueError('--tag must match expression {}'.format(self.tag_pattern))
+
         if not self.ecs_cluster:
             raise ValueError('--ecs-cluster must be provided')
         else:
