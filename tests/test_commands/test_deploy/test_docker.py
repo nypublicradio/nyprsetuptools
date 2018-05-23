@@ -74,3 +74,7 @@ class TestDocker:
         """
         with pytest.raises(SystemExit):
             self._run_cmd(settings, wait=60, migrate='/not/a/real/command')
+
+    def test_docker_invalid_environment(self, settings):
+        with pytest.raises(ValueError):
+            self._run_cmd(settings, environment='nonstandardvalue')

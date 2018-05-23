@@ -30,6 +30,7 @@ class DockerDeploy(Command):
     """
     user_options = [
         ('environment=', None, 'Environment to deploy'),
+        ('no-strict-environment', None, 'Flag allowing the use of arbitrary environment names'),
         ('ecs-cluster=', None, 'Base name of AWS ECS target cluster'),
         ('ecr-repository=', None, 'Base name of AWS ECR Docker repository'),
         ('tag=', None, 'Docker image tag'),
@@ -75,6 +76,7 @@ class DockerDeploy(Command):
 
     def initialize_options(self):
         self.environment = ''
+        self.no_strict_environment = False
         self.ecs_cluster = ''
         self.ecr_repository = ''
         self.tag = ''
@@ -94,7 +96,9 @@ class DockerDeploy(Command):
     def finalize_options(self):
         import shlex
         # Required arguments.
-        if self.environment not in ENVIRONMENTS:
+        if not self.environment:
+            raise ValueError('--environment cannot be empty.')
+        if self.environment not in ENVIRONMENTS and not self.no_strict_environment:
             raise ValueError('--environment must be one of ({}).'
                              .format(','.join(ENVIRONMENTS)))
         tag_match = self.tag_pattern.match(self.tag)
