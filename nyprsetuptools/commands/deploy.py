@@ -43,6 +43,7 @@ class DockerDeploy(Command):
         ('test-user=', None, 'User within the container to run tests'),
         ('fargate', None, 'Flag indicating that ECS task should run in Fargate'),
         ('execution-role=', None, 'Required with --fargate flag'),
+        ('task-role=', None, 'Can be passed with --fargate flag'),
         ('no-service', None, 'Flag indicating that ECS task is not a service'),
         ('wait=', None, 'Integer value in seconds to wait for new tasks to start'),
         ('migrate=', None, 'Command to run migrations'),
