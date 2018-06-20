@@ -89,6 +89,7 @@ class DockerDeploy(Command):
         self.test_user = ''
         self.fargate = False
         self.execution_role = ''
+        self.task_role = ''
         self.no_service = False
         self.wait = 0
         self.migrate = ''
@@ -195,10 +196,15 @@ class DockerDeploy(Command):
         additional_args = {}
         if self.fargate:
             execution_role_arn = self.iam.get_role(RoleName=self.execution_role)['Role']['Arn']
+            if self.task_role:
+                task_role_arn = self.iam.get_role(RoleName=self.task_role)['Role']['Arn']
+            else:
+                task_role_arn = ''
             additional_args.update({
                 'networkMode': 'awsvpc',
                 'requiresCompatibilities': ['EC2', 'FARGATE'],
                 'executionRoleArn': execution_role_arn,
+                'taskRoleArn': task_role_arn,
                 'cpu': str(self.cpu),
                 'memory': str(self.memory_reservation),
             })
