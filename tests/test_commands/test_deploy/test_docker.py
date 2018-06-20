@@ -22,6 +22,7 @@ class TestDocker:
         cmd.test = '/bin/true'
         cmd.fargate = True
         cmd.execution_role = settings['execution_role']
+        cmd.task_role = settings.get('task_role')
         cmd.wait = '60'
         for key, val in kwargs.items():
             setattr(cmd, key, val)
