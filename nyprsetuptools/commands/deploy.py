@@ -324,9 +324,12 @@ class DockerDeploy(Command):
             # of the latest task definition, however this script is
             # unaware of the previous task definition ARN.
             # The key not matching the new ARN will be retrieved as 'old'.
+            # The wait function is used because deployments may not show up
+            # immediately.
             deployments = {d['taskDefinition']: d
                            for d in resp['services'][0]['deployments']}
-            new = deployments.pop(task_definition_arn)
+            new = wait(deployments.pop, args=[task_definition_arn],
+                       exceptions=[KeyError])
             if deployments:
                 old = deployments.pop(list(deployments.keys())[0])
             else:
