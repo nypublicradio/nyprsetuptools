@@ -47,6 +47,8 @@ class DockerDeploy(Command):
         ('no-service', None, 'Flag indicating that ECS task is not a service'),
         ('wait=', None, 'Integer value in seconds to wait for new tasks to start'),
         ('migrate=', None, 'Command to run migrations'),
+        ('cloudfront-invalidation=', None, 'Cloudfront distribution and path(s) '
+            'to invalidate (eg. "I2XG1PHTR0E076:/path1/*:/path2").'),
     ]
     tag_pattern = re.compile(r'(?P<tag>v\d+\.\d+\.\d+|demo)')
 
@@ -69,6 +71,7 @@ class DockerDeploy(Command):
         self.ecs = boto3.client('ecs')
         self.iam = boto3.client('iam')
         self.cwl = boto3.client('logs')
+        self.cloudfront = boto3.client('cloudfront')
         self.ClientError = ClientError
 
     @property
@@ -94,6 +97,7 @@ class DockerDeploy(Command):
         self.no_service = False
         self.wait = 0
         self.migrate = ''
+        self.cloudfront_invalidation = ''
 
     def finalize_options(self):
         import shlex
@@ -131,6 +135,8 @@ class DockerDeploy(Command):
             self.test = shlex.split(self.test)
         if self.migrate:
             self.migrate = shlex.split(self.migrate)
+        if self.cloudfront_invalidation:
+            self.cloudfront_invalidation = self.cloudfront_invalidation.split(':')
 
     @staticmethod
     def docker(*args):
@@ -361,6 +367,27 @@ class DockerDeploy(Command):
                              .format(self.ecs_cluster))
         return cluster_name
 
+    def invalidate_cloudfront(self):
+        distribution_id, *paths = self.cloudfront_invalidation
+        if not paths:
+            paths = ['/*']
+        try:
+            self.cloudfront.create_invalidation(
+                DistributionId=distribution_id,
+                InvalidationBatch={
+                    'Paths': {
+                        'Quantity': len(paths),
+                        'Items': paths,
+                    },
+                    'CallerReference': str(time.time()),
+                }
+            )
+        except self.ClientError:
+            sys.exit(
+                'Cloudfront distribution {} could not be invalidated.'
+                .format(distribution_id)
+            )
+
     def run(self):
         # The repository URI should be included in the tag.
         resp = self.ecr.describe_repositories(repositoryNames=[self.ecr_repository])
@@ -394,6 +421,10 @@ class DockerDeploy(Command):
             # is updated with the latest task definition revision.
             if self.no_service is False:
                 self.update_service(cluster_name, task_name, task_definition_arn)
+
+        # CloudFront invalidations should happen after all other steps.
+        if self.cloudfront_invalidation:
+            self.invalidate_cloudfront()
 
 
 class LambdaDeploy(Command):
