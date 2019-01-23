@@ -10,7 +10,7 @@ class InstallBase(Command):
     @staticmethod
     def _parse_git_requirement(pkg):
         import re
-        return re.sub(r'^.*#egg=(.*)(?:-\d+\.\d+\.\d+)', r'\1', pkg)
+        return re.sub(r'^.*#egg=(.*)(?:-\d+\.\d+\.\d+)?', r'\1', pkg)
 
     @property
     def description(self):
