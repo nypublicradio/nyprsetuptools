@@ -2,24 +2,19 @@
 NYPR Setuptools Extensions
 """
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
-    name='nyprsetuptools',
-    version='0.0.15',
     author='NYPR Digital',
     author_email='digitalops@nypublicradio.org',
-    url='https://github.com/nypublicradio/nyprsetuptools',
     description=__doc__,
+    license='BSD',
     long_description=__doc__,
-    packages=[
-        'nyprsetuptools',
-        'nyprsetuptools.commands',
-        'nyprsetuptools.util',
-    ],
-    package_dir={
-        'nyprsetuptools': 'nyprsetuptools',
-    },
+    name='nyprsetuptools',
+    package_dir={},
+    packages=find_packages(exclude=['tests']),
+    url='https://github.com/nypublicradio/nyprsetuptools',
+    version='0.0.15',
     scripts=[
         'scripts/nyprsetuptools',
     ],
@@ -27,5 +22,4 @@ setup(
         'pytest',
     ],
     zip_safe=True,
-    license='BSD',
 )
