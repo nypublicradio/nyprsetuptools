@@ -12,10 +12,10 @@ multiple deployment methods by adding an additional command `deploy_lambda`, for
 
 ```python
     setup_requires=[
-        'nyprsetuptools>=0.0.0'
+        'nyprsetuptools'
     ],
     dependency_links=[
-        'https://github.com/nypublicradio/nyprsetuptools/tarball/master#egg=nyprsetuptools-0.0.0'
+        'https://github.com/nypublicradio/nyprsetuptools/tarball/master#egg=nyprsetuptools'
     ],
     entry_points={
         'distutils.commands': [
