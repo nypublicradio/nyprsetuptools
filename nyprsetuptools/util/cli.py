@@ -2,7 +2,7 @@ import sys
 from argparse import ArgumentParser, SUPPRESS
 from setuptools.dist import Distribution
 
-from nyprsetuptools import DockerDeploy
+from nyprsetuptools import DockerDeploy, LambdaDeploy
 
 
 def make_command(CommandClass):
@@ -41,7 +41,7 @@ def make_cli(command_classes):
 
 
 def run_cmd():
-    classes = [DockerDeploy]
+    classes = [DockerDeploy, LambdaDeploy]
     args = make_cli(classes)
     dist = Distribution()
     cls = args.pop('cls')
