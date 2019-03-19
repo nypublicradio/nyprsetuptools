@@ -32,6 +32,7 @@ class DockerDeploy(Command):
         ('environment=', None, 'Environment to deploy'),
         ('no-strict-environment', None, 'Flag allowing the use of arbitrary environment names'),
         ('ecs-cluster=', None, 'Base name of AWS ECS target cluster'),
+        ('ecs-service=', None, 'Base name of AWS ECS target service'),
         ('ecr-repository=', None, 'Base name of AWS ECR Docker repository'),
         ('tag=', None, 'Docker image tag'),
         ('memory-reservation=', None, 'Soft memory reservation for container'),
@@ -79,6 +80,7 @@ class DockerDeploy(Command):
         self.environment = ''
         self.no_strict_environment = False
         self.ecs_cluster = ''
+        self.ecs_service = ''
         self.ecr_repository = ''
         self.tag = ''
         self.memory_reservation = ''
@@ -369,9 +371,13 @@ class DockerDeploy(Command):
         full_tag = '{}:{}'.format(repository_uri, self.tag)
         latest_tag = '{}:latest'.format(repository_uri)
 
-        # The task definition name is a combination of the repository base
+        # If the ecs_service arg is provided, use that as the task name.
+        # Otherwise, the task definition name is a combination of the repository base
         # name and the environment.
-        task_name = '{}-{}'.format(self.ecr_repository, self.environment)
+        if self.ecs_service:
+            task_name = '{}-{}'.format(self.ecs_service, self.environment)
+        else:
+            task_name = '{}-{}'.format(self.ecr_repository, self.environment)
 
         # Builds the Docker image.
         self.build(tags=[full_tag, latest_tag])
