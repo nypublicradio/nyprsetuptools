@@ -332,6 +332,17 @@ class DockerDeploy(Command):
                            for d in resp['services'][0]['deployments']}
             new = wait(deployments.pop, args=[task_definition_arn],
                        exceptions=[KeyError])
+
+            # Sometimes the 'wait' condition times out before the new task
+            # information is available. This will continue trying for the
+            # duration of the timeout.
+            if not new:
+                print('Waiting on new task information, {}s until timeout.'
+                      .format(int(self.wait)))
+                time.sleep(5)
+                self.wait = self.wait - (time.time() - start_time)
+                continue
+
             if deployments:
                 old = deployments.pop(list(deployments.keys())[0])
             else:
