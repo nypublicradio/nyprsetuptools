@@ -32,6 +32,7 @@ class DockerDeploy(Command):
         ('environment=', None, 'Environment to deploy'),
         ('no-strict-environment', None, 'Flag allowing the use of arbitrary environment names'),
         ('ecs-cluster=', None, 'Base name of AWS ECS target cluster'),
+        ('cluster-override=', None, 'Base name of AWS ECS target cluster. Does not assume env.'),
         ('ecs-service=', None, 'Base name of AWS ECS target service'),
         ('ecr-repository=', None, 'Base name of AWS ECR Docker repository'),
         ('tag=', None, 'Docker image tag'),
@@ -80,6 +81,7 @@ class DockerDeploy(Command):
         self.environment = ''
         self.no_strict_environment = False
         self.ecs_cluster = ''
+        self.cluster_override = ''
         self.ecs_service = ''
         self.ecr_repository = ''
         self.tag = ''
@@ -111,10 +113,14 @@ class DockerDeploy(Command):
             if not tag_match:
                 raise ValueError('--tag must match expression {}'.format(self.tag_pattern))
 
-        if not self.ecs_cluster:
-            raise ValueError('--ecs-cluster must be provided')
+        if not self.ecs_cluster and not self.cluster_override:
+            raise ValueError('--ecs-cluster or --cluster-override must be provided')
         else:
-            self.ecs_cluster = '{}-{}'.format(self.ecs_cluster, self.environment)
+            if self.ecs_cluster:
+                self.ecs_cluster = '{}-{}'.format(self.ecs_cluster, self.environment)
+            else:
+                self.ecs_cluster = self.cluster_override
+
         if not self.ecr_repository:
             raise ValueError('--ecr-repository must be provided')
 
