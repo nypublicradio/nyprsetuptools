@@ -30,6 +30,7 @@ class DockerDeploy(Command):
     """
     user_options = [
         ('environment=', None, 'Environment to deploy'),
+        ('environment_var_override=', None, 'Env Var prefix override'),
         ('no-strict-environment', None, 'Flag allowing the use of arbitrary environment names'),
         ('ecs-cluster=', None, 'Base name of AWS ECS target cluster'),
         ('cluster-override=', None, 'Base name of AWS ECS target cluster. Does not assume env.'),
@@ -79,6 +80,7 @@ class DockerDeploy(Command):
 
     def initialize_options(self):
         self.environment = ''
+        self.environment_var_override = ''
         self.no_strict_environment = False
         self.ecs_cluster = ''
         self.cluster_override = ''
@@ -179,7 +181,10 @@ class DockerDeploy(Command):
             the provided image (a full ECS image tag).
             Returns the new task's arn.
         """
-        env_vars = get_circle_environment_variables(self.environment)
+        if self.environment_var_override:
+          env_vars = get_circle_environment_variables(self.environment_var_override)
+        else:
+          env_vars = get_circle_environment_variables(self.environment)
 
         resp = self.ecs.describe_task_definition(taskDefinition=task_name)
         container_defs = resp['taskDefinition']['containerDefinitions']
