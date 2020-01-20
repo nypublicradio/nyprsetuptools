@@ -41,26 +41,31 @@ class InstallTestRequirements(Command):
         executed directly, for example).
     """
 
-    user_options = []
+    user_options = [
+        ('user', None, 'Pass `--user` to pip install')
+    ]
 
     @property
     def description(self):
         return self.__doc__
 
     def initialize_options(self):
-        pass
+        self.user = False
 
     def finalize_options(self):
         pass
 
     def run(self):
         import subprocess
+        cmd = ['pip', 'install']
+        if self.user:
+            cmd.append('--user')
         install_from_git = [pkg.split('=')[:len('#egg=')] for pkg
                             in self.distribution.dependency_links]
         install_from_pypi = [pkg for pkg in self.distribution.tests_require
                              if pkg not in install_from_git]
         p = subprocess.Popen(
-            ['pip', 'install'] +
+            cmd +
             self.distribution.dependency_links +
             install_from_pypi
         )
