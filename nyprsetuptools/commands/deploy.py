@@ -30,7 +30,7 @@ class DockerDeploy(Command):
     """
     user_options = [
         ('environment=', None, 'Environment to deploy'),
-        ('environment_var_override=', None, 'Env Var prefix override'),
+        ('environment-var-override=', None, 'Env Var prefix override'),
         ('no-strict-environment', None, 'Flag allowing the use of arbitrary environment names'),
         ('ecs-cluster=', None, 'Base name of AWS ECS target cluster'),
         ('cluster-override=', None, 'Base name of AWS ECS target cluster. Does not assume env.'),
