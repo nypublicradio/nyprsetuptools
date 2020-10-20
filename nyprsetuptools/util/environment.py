@@ -29,3 +29,21 @@ def get_circle_environment_variables(environment, exclude_aws=False):
                 except KeyError:
                     pass
         return environment_variables
+
+def get_secrets(environment, secrets_manager):
+    def arn_for_secret(secret_name):
+        secret = secrets_manager.describe_secret(SecretId=secret_name)
+        return secret['ARN']
+
+    if os.environ.get('CIRCLECI') == 'true':
+        secrets = {}
+        match_prefix = '{}_'.format(environment.upper())
+        try:
+            with open('./SECRETS', 'r') as secrets:
+                for secret_name in secrets:
+                    if secret_name.startswith(match_prefix):
+                        arn = arn_for_secret(secret_name)
+                        secrets[secret_name.lstrip(match_prefix)] = arn
+        except FileNotFoundError:
+            print("no SECRETS file found.")
+        return secrets
