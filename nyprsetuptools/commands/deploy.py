@@ -183,16 +183,19 @@ class DockerDeploy(Command):
         else:
             env_vars = get_circle_environment_variables(self.environment)
 
-        secret_vars = get_secrets(self.environment, self.secretsmanager)
-
-        task_def_vars, task_def_secrets = [], []
+        task_def_vars = []
         if env_vars:
             task_def_vars = [{'name': k, 'value': v}
                              for k, v in env_vars.items()]
+        return task_def_vars
+
+    def _get_task_secrets(self):
+        secret_vars = get_secrets(self.environment, self.secretsmanager)
+        task_def_secrets = []
         if secret_vars:
             task_def_secrets = [{'name': k, 'valueFrom': v}
                                 for k, v in secret_vars.items()]
-        return task_def_vars + task_def_secrets
+        return task_def_secrets
 
     def update_task_definition(self, task_name, image):
         """ Updates the given task (provided by task_name) to target
@@ -209,6 +212,7 @@ class DockerDeploy(Command):
         task_def['image'] = image
 
         task_def['environment'] = self._get_env_vars()
+        task_def['secrets'] = self._get_task_secrets()
 
         if self.memory_reservation:
             task_def['memoryReservation'] = int(self.memory_reservation)
