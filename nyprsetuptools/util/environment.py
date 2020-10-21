@@ -40,10 +40,11 @@ def get_secrets(environment, secrets_manager):
         match_prefix = '{}_'.format(environment.upper())
         try:
             with open('./SECRETS', 'r') as secrets:
-                for secret_name in secrets:
-                    if secret_name.startswith(match_prefix):
-                        arn = arn_for_secret(secret_name)
-                        secrets[secret_name.lstrip(match_prefix)] = arn
+                for secret in secrets:
+                    if secret.startswith(match_prefix):
+                        varname, secretname = secret.split(':')
+                        arn = arn_for_secret(secretname.strip())
+                        secrets[varname.strip().lstrip(match_prefix)] = arn
         except FileNotFoundError:
             print("no SECRETS file found.")
         return secrets
