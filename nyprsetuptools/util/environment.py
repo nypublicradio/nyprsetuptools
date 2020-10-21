@@ -36,7 +36,7 @@ def get_secrets(environment, secrets_manager):
         return secret['ARN']
 
     if os.environ.get('CIRCLECI') == 'true':
-        secrets = {}
+        task_secrets = {}
         match_prefix = '{}_'.format(environment.upper())
         try:
             with open('./SECRETS', 'r') as secrets:
@@ -44,7 +44,7 @@ def get_secrets(environment, secrets_manager):
                     if secret.startswith(match_prefix):
                         varname, secretname = secret.split(':')
                         arn = arn_for_secret(secretname.strip())
-                        secrets[varname.strip().lstrip(match_prefix)] = arn
+                        task_secrets[varname.strip().lstrip(match_prefix)] = arn
         except FileNotFoundError:
             print("no SECRETS file found.")
-        return secrets
+        return task_secrets
