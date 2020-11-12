@@ -8,7 +8,7 @@ from io import BytesIO
 from setuptools import Command
 from subprocess import Popen, STDOUT
 
-from nyprsetuptools.util.environment import get_circle_environment_variables
+from nyprsetuptools.util.environment import get_circle_environment_variables, get_secrets
 from nyprsetuptools.util.wait import wait
 
 
@@ -72,6 +72,7 @@ class DockerDeploy(Command):
         self.ecs = boto3.client('ecs')
         self.iam = boto3.client('iam')
         self.cwl = boto3.client('logs')
+        self.secretsmanager = boto3.client('secretsmanager')
         self.ClientError = ClientError
 
     @property
@@ -176,15 +177,31 @@ class DockerDeploy(Command):
         for tag in tags:
             self.docker('push', tag)
 
+    def _get_env_vars(self):
+        if self.environment_var_override:
+            env_vars = get_circle_environment_variables(self.environment_var_override)
+        else:
+            env_vars = get_circle_environment_variables(self.environment)
+
+        task_def_vars = []
+        if env_vars:
+            task_def_vars = [{'name': k, 'value': v}
+                             for k, v in env_vars.items()]
+        return task_def_vars
+
+    def _get_task_secrets(self):
+        secret_vars = get_secrets(self.environment, self.secretsmanager)
+        task_def_secrets = []
+        if secret_vars:
+            task_def_secrets = [{'name': k, 'valueFrom': v}
+                                for k, v in secret_vars.items()]
+        return task_def_secrets
+
     def update_task_definition(self, task_name, image):
         """ Updates the given task (provided by task_name) to target
             the provided image (a full ECS image tag).
             Returns the new task's arn.
         """
-        if self.environment_var_override:
-          env_vars = get_circle_environment_variables(self.environment_var_override)
-        else:
-          env_vars = get_circle_environment_variables(self.environment)
 
         resp = self.ecs.describe_task_definition(taskDefinition=task_name)
         container_defs = resp['taskDefinition']['containerDefinitions']
@@ -193,9 +210,10 @@ class DockerDeploy(Command):
                                       'single-container tasks')
         task_def = container_defs[0]
         task_def['image'] = image
-        if env_vars:
-            task_def['environment'] = [{'name': k, 'value': v}
-                                       for k, v in env_vars.items()]
+
+        task_def['environment'] = self._get_env_vars()
+        task_def['secrets'] = self._get_task_secrets()
+
         if self.memory_reservation:
             task_def['memoryReservation'] = int(self.memory_reservation)
         elif self.memory_reservation_hard:
