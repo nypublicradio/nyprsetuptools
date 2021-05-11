@@ -45,6 +45,7 @@ class DockerDeploy(Command):
         ('test=', None, 'Command to test container after build'),
         ('test-user=', None, 'User within the container to run tests'),
         ('fargate', None, 'Flag indicating that ECS task should run in Fargate'),
+        ('enable-execute-command', None, 'Flag enabling ECS execute command'),
         ('execution-role=', None, 'Required with --fargate flag'),
         ('task-role=', None, 'Can be passed with --fargate flag'),
         ('no-service', None, 'Flag indicating that ECS task is not a service'),
@@ -96,6 +97,7 @@ class DockerDeploy(Command):
         self.test = ''
         self.test_user = ''
         self.fargate = False
+        self.enable_execute_command = False
         self.execution_role = ''
         self.task_role = ''
         self.no_service = False
@@ -338,6 +340,7 @@ class DockerDeploy(Command):
             service=task_name,
             cluster=cluster_name,
             taskDefinition=task_definition_arn,
+            enableExecuteCommand=self.enable_execute_command,
         )
 
         # When a --wait value is provided this will block
