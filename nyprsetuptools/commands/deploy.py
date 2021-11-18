@@ -591,6 +591,17 @@ class LambdaDeploy(Command):
         # will not be updated.
         env = get_circle_environment_variables(self.environment, exclude_aws=True)
         if env:
+            # if this update_function_configuration call is made while the previous 
+            # update call is still running, the build will fail and the env vars won't be
+            # updated. So we need to wait until the LastUpdateStatus of the function is "Successful" instead
+            # of "InProgress".
+            timeout = 0
+            while timeout < 60 and client.get_function(FunctionName=function_name)['Configuration']['LastUpdateStatus'] == 'InProgress':
+                print(f'Waiting for code deploy before updating env vars. {60 - timeout} seconds until timeout.')
+                time.sleep(5)
+                timeout += 5
+            if timeout == 60:
+                sys.exit(f"The update to {function_name} has timed out before updating the Env Vars") 
             client.update_function_configuration(
                 FunctionName=function_name,
                 Handler=function_handler,
