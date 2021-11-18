@@ -10,7 +10,7 @@ setup(
     author='NYPR Digital',
     author_email='digitalops@nypublicradio.org',
     url='https://github.com/nypublicradio/nyprsetuptools',
-    description=__doc__,
+    description=__doc__.strip(),
     long_description=__doc__,
     packages=[
         'nyprsetuptools',
