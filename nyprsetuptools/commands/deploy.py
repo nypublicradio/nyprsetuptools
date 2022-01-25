@@ -340,7 +340,7 @@ class DockerDeploy(Command):
             service=task_name,
             cluster=cluster_name,
             taskDefinition=task_definition_arn,
-            enableExecuteCommand=self.enable_execute_command,
+            enableExecuteCommand=bool(self.enable_execute_command),
         )
 
         # When a --wait value is provided this will block
