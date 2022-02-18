@@ -614,7 +614,7 @@ class LambdaDeploy(Command):
                 except KeyError:
                     if self.debug:
                         import json
-                        print(json.dump(config))
+                        print(json.dumps(config))
                     sys.exit(f"Unable to retrieve update status from Lambda. Aborting.")
 
             if timeout >= 60:
