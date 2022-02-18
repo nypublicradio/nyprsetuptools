@@ -606,6 +606,7 @@ class LambdaDeploy(Command):
                         break
                     elif update_status == 'Failed':
                         sys.exit(f"The update to {function_name} failed; reason provided: {config['LastUpdateStatusReason']}")
+
                     if self.debug:
                         print(f'Waiting for code deploy before updating env vars. {60 - timeout} seconds until timeout.')
                     time.sleep(5)
@@ -615,6 +616,7 @@ class LambdaDeploy(Command):
                         import json
                         print(json.dump(config))
                     sys.exit(f"Unable to retrieve update status from Lambda. Aborting.")
+
             if timeout >= 60:
                 sys.exit(f"The update to {function_name} has timed out before updating the Env Vars") 
             client.update_function_configuration(
