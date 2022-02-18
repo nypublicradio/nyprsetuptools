@@ -596,7 +596,16 @@ class LambdaDeploy(Command):
             # updated. So we need to wait until the LastUpdateStatus of the function is "Successful" instead
             # of "InProgress".
             timeout = 0
-            while timeout < 60 and client.get_function(FunctionName=function_name)['Configuration']['LastUpdateStatus'] == 'InProgress':
+            while timeout < 60:
+                try:
+                    update_status = client.get_function(FunctionName=function_name)['Configuration']['LastUpdateStatus']
+                    if update_status == 'Successful':
+                        break
+                    elif update_status == 'Failed':
+                        sys.exit("The update to {0} failed; reason provided: {1}".format(function_name,client.get_function(FunctionName=function_name)['Configuration']['LastUpdateStatusReason']))
+                except KeyError:
+                    # If there is no LastUpdateStatus key, keep waiting.
+                    continue
                 print(f'Waiting for code deploy before updating env vars. {60 - timeout} seconds until timeout.')
                 time.sleep(5)
                 timeout += 5
