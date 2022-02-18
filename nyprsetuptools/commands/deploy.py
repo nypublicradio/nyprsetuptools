@@ -600,19 +600,19 @@ class LambdaDeploy(Command):
                 try:
                     config = client.get_function(FunctionName=function_name)['Configuration']
                     update_status = config['LastUpdateStatus']
+
+                    if update_status == 'Successful':
+                        break
+                    elif update_status == 'Failed':
+                        sys.exit(f"The update to {function_name} failed; reason provided: {config['LastUpdateStatusReason']}")
                 except KeyError:
                     # If there is no LastUpdateStatus key, keep waiting.
-                    continue
-                    
-                if update_status == 'Successful':
-                    break
-                elif update_status == 'Failed':
-                    sys.exit(f"The update to {function_name} failed; reason provided: {config['LastUpdateStatusReason']}")
+                    pass
 
                 print(f'Waiting for code deploy before updating env vars. {60 - timeout} seconds until timeout.')
                 time.sleep(5)
                 timeout += 5
-            if timeout == 60:
+            if timeout >= 60:
                 sys.exit(f"The update to {function_name} has timed out before updating the Env Vars") 
             client.update_function_configuration(
                 FunctionName=function_name,
