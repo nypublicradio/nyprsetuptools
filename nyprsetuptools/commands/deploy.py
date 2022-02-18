@@ -466,6 +466,7 @@ class LambdaDeploy(Command):
         ('function-handler=', None, 'Dot-delimited path to python function'),
         ('package-dir=', None, '(Optional) target directory to zip + deploy'),
         ('no-s3', None, 'Upload zip directly to Lamdba, bypassing S3'),
+        ('debug', None, '(Optional) print debug statements during deploy')
     ]
 
     @property
@@ -478,6 +479,7 @@ class LambdaDeploy(Command):
         self.function_handler = ''
         self.package_dir = None
         self.no_s3 = False
+        self.debug = False
 
     def finalize_options(self):
         if self.environment not in ENVIRONMENTS:
@@ -596,11 +598,24 @@ class LambdaDeploy(Command):
             # updated. So we need to wait until the LastUpdateStatus of the function is "Successful" instead
             # of "InProgress".
             timeout = 0
-            while timeout < 60 and client.get_function(FunctionName=function_name)['Configuration']['LastUpdateStatus'] == 'InProgress':
-                print(f'Waiting for code deploy before updating env vars. {60 - timeout} seconds until timeout.')
-                time.sleep(5)
-                timeout += 5
-            if timeout == 60:
+            while timeout < 60:
+                try:
+                    config = client.get_function(FunctionName=function_name)['Configuration']
+                    update_status = config['LastUpdateStatus']
+                    if update_status == 'Successful':
+                        break
+                    elif update_status == 'Failed':
+                        sys.exit(f"The update to {function_name} failed; reason provided: {config['LastUpdateStatusReason']}")
+                    if self.debug:
+                        print(f'Waiting for code deploy before updating env vars. {60 - timeout} seconds until timeout.')
+                    time.sleep(5)
+                    timeout += 5
+                except KeyError:
+                    if self.debug:
+                        import json
+                        print(json.dump(config))
+                    sys.exit(f"Unable to retrieve update status from Lambda. Aborting.")
+            if timeout >= 60:
                 sys.exit(f"The update to {function_name} has timed out before updating the Env Vars") 
             client.update_function_configuration(
                 FunctionName=function_name,
