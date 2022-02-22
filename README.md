@@ -98,7 +98,7 @@ optional arguments:
 
 ### LambdaDeploy
 
-**Note:** This functionality requires `boto3>=1.21.2` to deploy correctly.
+**Note:** This functionality requires `boto3~=1.21` to deploy correctly.
 If a lambda is being deployed that uses `boto3`, it must require a version of
 `boto3` that is compatible with `nyprsetuptools`.
 
