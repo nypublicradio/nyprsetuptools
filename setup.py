@@ -23,6 +23,9 @@ setup(
     scripts=[
         'scripts/nyprsetuptools',
     ],
+    install_requires=[
+        'boto3>=1.7,<1.8'
+    ],
     tests_require=[
         'pytest',
     ],
