@@ -29,6 +29,7 @@ class DockerDeploy(Command):
         echo Docker's output to STDOUT.
     """
     user_options = [
+        ('dockerfile=', None, 'Dockerfile to build & deploy'),
         ('environment=', None, 'Environment to deploy'),
         ('environment-var-override=', None, 'Env Var prefix override'),
         ('no-strict-environment', None, 'Flag allowing the use of arbitrary environment names'),
@@ -81,6 +82,7 @@ class DockerDeploy(Command):
         return self.__doc__
 
     def initialize_options(self):
+        self.dockerfile = ''
         self.environment = ''
         self.environment_var_override = ''
         self.no_strict_environment = False
@@ -159,6 +161,8 @@ class DockerDeploy(Command):
         # This scary bit of code generates all of the '-t' command line
         # flags for tagging images.
         flags = list(sum(zip(itertools.repeat('-t'), tags), ()))
+        if self.dockerfile:
+            flags.append(f'-f {self.dockerfile}')
         self.docker('build', *flags, os.getcwd())
         if self.test:
             test_tag = tags[0]
