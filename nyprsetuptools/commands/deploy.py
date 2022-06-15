@@ -154,7 +154,7 @@ class DockerDeploy(Command):
         if p.returncode > 0:
             raise IOError('Problem building docker container, aborting.')
 
-    def build(self, tags=[]):
+    def build(self, env_vars, tags=[]):
         """
         Builds the Docker image with tags  <repo>:<git_tag> and <repo>:latest.
         """
@@ -163,6 +163,10 @@ class DockerDeploy(Command):
         flags = list(sum(zip(itertools.repeat('-t'), tags), ()))
         if self.dockerfile:
             flags.append(f'-f {self.dockerfile}')
+
+        for var in env_vars:
+            os.environ[var['name']] = var['value']
+
         self.docker('build', *flags, os.getcwd())
         if self.test:
             test_tag = tags[0]
@@ -203,7 +207,7 @@ class DockerDeploy(Command):
                                 for k, v in secret_vars.items()]
         return task_def_secrets
 
-    def update_task_definition(self, task_name, image):
+    def update_task_definition(self, task_name, image, env_vars):
         """ Updates the given task (provided by task_name) to target
             the provided image (a full ECS image tag).
             Returns the new task's arn.
@@ -217,7 +221,7 @@ class DockerDeploy(Command):
         task_def = container_defs[0]
         task_def['image'] = image
 
-        task_def['environment'] = self._get_env_vars()
+        task_def['environment'] = env_vars
         task_def['secrets'] = self._get_task_secrets()
 
         if self.memory_reservation:
@@ -426,14 +430,16 @@ class DockerDeploy(Command):
         else:
             task_name = '{}-{}'.format(self.ecr_repository, self.environment)
 
+        env_vars = self._get_env_vars()
+
         # Builds the Docker image.
-        self.build(tags=[full_tag, latest_tag])
+        self.build(env_vars, tags=[full_tag, latest_tag])
 
         # Pushes the Docker image.
         self.push(registry_id, tags=[full_tag, latest_tag])
 
         # Updates the Task Definition
-        task_definition_arn = self.update_task_definition(task_name, image=full_tag)
+        task_definition_arn = self.update_task_definition(task_name, full_tag, env_vars)
 
         # The ECS cluster name is required for migrations and service updates.
         if self.migrate or (self.no_service is False):
