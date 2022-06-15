@@ -439,7 +439,7 @@ class DockerDeploy(Command):
         self.push(registry_id, tags=[full_tag, latest_tag])
 
         # Updates the Task Definition
-        task_definition_arn = self.update_task_definition(task_name, image=full_tag, env_vars)
+        task_definition_arn = self.update_task_definition(task_name, full_tag, env_vars)
 
         # The ECS cluster name is required for migrations and service updates.
         if self.migrate or (self.no_service is False):
