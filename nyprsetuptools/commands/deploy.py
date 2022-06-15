@@ -165,7 +165,7 @@ class DockerDeploy(Command):
             flags.append(f'-f {self.dockerfile}')
 
         for var in env_vars:
-            os.environ[var['name']] = var['value']
+            os.environ.[var['name']] = var['value']
 
         self.docker('build', *flags, os.getcwd())
         if self.test:
@@ -433,13 +433,13 @@ class DockerDeploy(Command):
         env_vars = self._get_env_vars()
 
         # Builds the Docker image.
-        self.build(tags=[full_tag, latest_tag])
+        self.build(env_vars, tags=[full_tag, latest_tag])
 
         # Pushes the Docker image.
         self.push(registry_id, tags=[full_tag, latest_tag])
 
         # Updates the Task Definition
-        task_definition_arn = self.update_task_definition(task_name, image=full_tag)
+        task_definition_arn = self.update_task_definition(task_name, image=full_tag, env_vars)
 
         # The ECS cluster name is required for migrations and service updates.
         if self.migrate or (self.no_service is False):
