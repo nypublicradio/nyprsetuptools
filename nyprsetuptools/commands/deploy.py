@@ -165,7 +165,10 @@ class DockerDeploy(Command):
             flags.append(f'-f {self.dockerfile}')
 
         for var in env_vars:
-            flags.append(f'--build-arg {var["name"]}={var["value"]}')
+            flags.append(f'--build-arg "{var["name"]}={var["value"]}"')
+
+        for flag in flags:
+            print(flag)
 
         self.docker('build', *flags, os.getcwd())
         if self.test:
