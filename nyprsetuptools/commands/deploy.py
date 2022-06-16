@@ -165,7 +165,7 @@ class DockerDeploy(Command):
             flags.append(f'-f {self.dockerfile}')
 
         for var in env_vars:
-            os.environ[var['name']] = var['value']
+            flags.append(f'--build-arg {var["name"]}={var["value"]}')
 
         self.docker('build', *flags, os.getcwd())
         if self.test:
