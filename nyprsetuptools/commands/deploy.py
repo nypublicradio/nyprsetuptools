@@ -170,8 +170,6 @@ class DockerDeploy(Command):
 
         vars = list(sum(zip(itertools.repeat('--build-arg'), vars), ()))
         flags = flags + vars
-        for flag in flags:
-            print(flag)
 
         self.docker('build', *flags, os.getcwd())
         if self.test:
