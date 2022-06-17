@@ -164,9 +164,12 @@ class DockerDeploy(Command):
         if self.dockerfile:
             flags.append(f'-f {self.dockerfile}')
 
+        vars = []
         for var in env_vars:
-            flags.append(f'--build-arg "{var["name"]}={var["value"]}"')
+            vars.append(f'{var["name"]}={var["value"]}')
 
+        vars = list(sum(zip(itertools.repeat('--build-arg'), vars), ()))
+        flags = flags + vars
         for flag in flags:
             print(flag)
 
