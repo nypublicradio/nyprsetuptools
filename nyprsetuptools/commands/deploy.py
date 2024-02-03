@@ -219,9 +219,9 @@ class DockerDeploy(Command):
 
         resp = self.ecs.describe_task_definition(taskDefinition=task_name)
         container_defs = resp['taskDefinition']['containerDefinitions']
-        if len(container_defs) > 1:
+        if len(container_defs) > 2:
             raise NotImplementedError('This command currently only supports '
-                                      'single-container tasks')
+                                      'single-container tasks and a firelens container')
         task_def = container_defs[0]
         task_def['image'] = image
 
@@ -239,6 +239,28 @@ class DockerDeploy(Command):
         if self.command:
             task_def['command'] = self.command
 
+        # Set the tasks logging configuration to firelens
+        task_def['logConfiguration'] = {
+            'logDriver': 'awsfirelens',
+            'options': {
+                'Name': 'newrelic'
+                'apiKey': 'NEW_RELIC_LICENSE_KEY'
+            },
+        }
+
+        # Add a firelens log router sidecar container 
+        log_router_defs = {
+            'essential': true,
+            'image': '533243300146.dkr.ecr.us-east-2.amazonaws.com/newrelic/logging-firelens-fluentbit',
+            'name': 'log_router',
+            'firelensConfiguration': {
+                'type': 'fluentbit',
+                'options': {
+                    'enable-ecs-log-metadata': 'true'
+                }
+            }
+        }
+
         additional_args = {}
         if self.fargate:
             execution_role_arn = self.iam.get_role(RoleName=self.execution_role)['Role']['Arn']
@@ -252,7 +274,7 @@ class DockerDeploy(Command):
                 'executionRoleArn': execution_role_arn,
                 'taskRoleArn': task_role_arn,
                 'cpu': str(self.cpu),
-                'memory': str(self.memory_reservation),
+                'memory': str(self.memory_reservation)
             })
 
         # Update the ECS task definition with the newly pushed Docker image.
@@ -260,6 +282,7 @@ class DockerDeploy(Command):
         resp = self.ecs.register_task_definition(
             containerDefinitions=[
                 task_def,
+                log_router_defs
             ],
             family=task_name,
             **additional_args,
@@ -303,44 +326,46 @@ class DockerDeploy(Command):
         resp = self.ecs.describe_task_definition(
             taskDefinition=task_name
         )
-        log_config = resp['taskDefinition']['containerDefinitions'][0]['logConfiguration']['options']
-        log_group_name = log_config['awslogs-group']
-        log_stream_name = '{prefix}/{family}/{uuid}'.format(
-            prefix=log_config['awslogs-stream-prefix'],
-            family=resp['taskDefinition']['family'],
-            uuid=uuid,
-        )
+        # This part of the codebase no longer functions once logging is moved over to new relic.
 
-        def read_logs(next_token=None):
-            options = {
-                'logGroupName': log_group_name,
-                'logStreamName': log_stream_name,
-                'startFromHead': True,
-            }
-            if next_token:
-                options['startFromHead'] = False
-                options['nextToken'] = next_token
-            resp = wait(self.cwl.get_log_events, kwargs=options,
-                        exceptions=[self.ClientError])
-            for event in resp['events']:
-                print(event['message'])
-            return resp['nextForwardToken']
+        # log_config = resp['taskDefinition']['containerDefinitions'][0]['logConfiguration']['options']
+        # log_group_name = log_config['awslogs-group']
+        # log_stream_name = '{prefix}/{family}/{uuid}'.format(
+        #     prefix=log_config['awslogs-stream-prefix'],
+        #     family=resp['taskDefinition']['family'],
+        #     uuid=uuid,
+        # )
 
-        running = True
-        next_token = read_logs()
-        while running:
-            resp = wait(self.ecs.describe_tasks,
-                        kwargs={'cluster': cluster_name, 'tasks': [uuid]},
-                        wait_for_func=lambda x: x['tasks'])
-            running = resp['tasks'][0]['lastStatus'] != 'STOPPED'
-            next_token = read_logs(next_token)
-            time.sleep(1)  # Prevents exceeding API rate limit.
+        # def read_logs(next_token=None):
+        #     options = {
+        #         'logGroupName': log_group_name,
+        #         'logStreamName': log_stream_name,
+        #         'startFromHead': True,
+        #     }
+        #     if next_token:
+        #         options['startFromHead'] = False
+        #         options['nextToken'] = next_token
+        #     resp = wait(self.cwl.get_log_events, kwargs=options,
+        #                 exceptions=[self.ClientError])
+        #     for event in resp['events']:
+        #         print(event['message'])
+        #     return resp['nextForwardToken']
 
-        # If the container fails to start (eg. command not found on PATH)
-        # exitCode will be unavailable.
-        exit_code = resp['tasks'][0]['containers'][0].get('exitCode', 1)
-        if exit_code > 0:
-            raise SystemExit('Migration command failed, aborting.')
+        # running = True
+        # next_token = read_logs()
+        # while running:
+        #     resp = wait(self.ecs.describe_tasks,
+        #                 kwargs={'cluster': cluster_name, 'tasks': [uuid]},
+        #                 wait_for_func=lambda x: x['tasks'])
+        #     running = resp['tasks'][0]['lastStatus'] != 'STOPPED'
+        #     next_token = read_logs(next_token)
+        #     time.sleep(1)  # Prevents exceeding API rate limit.
+
+        # # If the container fails to start (eg. command not found on PATH)
+        # # exitCode will be unavailable.
+        # exit_code = resp['tasks'][0]['containers'][0].get('exitCode', 1)
+        # if exit_code > 0:
+        #     raise SystemExit('Migration command failed, aborting.')
 
     def update_service(self, cluster_name, task_name, task_definition_arn):
         """ Updates an ECS cluster's service for a service that matches
