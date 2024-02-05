@@ -220,7 +220,7 @@ class DockerDeploy(Command):
 
         resp = self.ecs.describe_task_definition(taskDefinition=task_name)
         container_defs = resp['taskDefinition']['containerDefinitions']
-        if (not self.use_new_relic and len(container_defs) > 1) || (self.use_new_relic and len(container_defs) > 2):
+        if (not self.use_new_relic and len(container_defs) > 1) or (self.use_new_relic and len(container_defs) > 2):
             raise NotImplementedError('This command currently only supports '
                                       'single-container tasks and a firelens container for new relic.')
         task_def = container_defs[0]
