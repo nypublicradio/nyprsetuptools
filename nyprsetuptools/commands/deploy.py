@@ -243,7 +243,7 @@ class DockerDeploy(Command):
         task_def['logConfiguration'] = {
             'logDriver': 'awsfirelens',
             'options': {
-                'Name': 'newrelic'
+                'Name': 'newrelic',
                 'apiKey': 'NEW_RELIC_LICENSE_KEY'
             },
         }
