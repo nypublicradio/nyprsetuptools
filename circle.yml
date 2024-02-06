@@ -1,4 +1,12 @@
-version: 2
+version: 2.1
+
+workflows:
+  build:
+    jobs:
+      - build:
+          name: Build & Test
+          context: AWS Deploy
+
 jobs:
   build:
     working_directory: ~/nyprsetuptools
